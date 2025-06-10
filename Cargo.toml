@@ -1,0 +1,9 @@
+[package]
+name = "unknown-pixel"
+version = "0.0.1"
+authors = ["Dmytro Paduchak dmytro.paduchak@gmail.com"]
+edition = "2021"
+
+[dependencies]
+macroquad = "0.4"
+miniquad = "0.4.6"

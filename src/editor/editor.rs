@@ -1,6 +1,7 @@
 use macroquad::prelude::clear_background;
 use macroquad::prelude::draw_line;
 use macroquad::prelude::draw_rectangle;
+use macroquad::prelude::draw_rectangle_lines;
 use macroquad::prelude::draw_texture_ex;
 use macroquad::prelude::is_key_pressed;
 use macroquad::prelude::is_mouse_button_down;
@@ -18,6 +19,7 @@ use macroquad::prelude::KeyCode;
 use macroquad::prelude::MouseButton;
 use macroquad::prelude::BLACK;
 use macroquad::prelude::LIGHTGRAY;
+use macroquad::prelude::RED;
 use macroquad::prelude::WHITE;
 
 const PIXEL_SIZE: f32 = 8.0;
@@ -122,6 +124,18 @@ impl Editor {
             if is_key_pressed(KeyCode::E) {
                 self.export_combined(&grid);
             }
+
+            let w = 640.0;
+            let h = 480.0;
+            let x = screen_width / 2.0 - w / 2.0;
+            let y = screen_height / 2.0 - h / 2.0;
+            draw_rectangle_lines(x, y, w, h, 2.0, RED.with_alpha(0.3));
+
+            let w = 1280.0;
+            let h = 720.0;
+            let x = screen_width / 2.0 - w / 2.0;
+            let y = screen_height / 2.0 - h / 2.0;
+            draw_rectangle_lines(x, y, w, h, 2.0, RED.with_alpha(0.3));
 
             next_frame().await;
         }

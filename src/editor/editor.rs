@@ -109,7 +109,7 @@ impl Editor {
                     x as f32 * self.size,
                     GRID_HEIGHT as f32 * self.size,
                     1.0,
-                    LIGHTGRAY,
+                    LIGHTGRAY.with_alpha(0.5),
                 );
             }
             for y in 0..=GRID_HEIGHT {
@@ -119,7 +119,7 @@ impl Editor {
                     GRID_WIDTH as f32 * self.size,
                     y as f32 * self.size,
                     1.0,
-                    LIGHTGRAY,
+                    LIGHTGRAY.with_alpha(0.5),
                 );
             }
 
@@ -128,7 +128,8 @@ impl Editor {
 
             if is_mouse_button_down(MouseButton::Left) {
                 if !self.draw {
-                    self.push_undo();
+                    self.undo_stack.push(self.grid.clone());
+                    self.redo_stack.clear();
                 }
                 self.draw = true;
             }
@@ -150,11 +151,11 @@ impl Editor {
                 self.export();
             }
 
-            if !is_key_down(KeyCode::LeftSuper) && is_key_pressed(KeyCode::Minus) {
+            if !is_key_down(KeyCode::LeftSuper) && is_key_pressed(KeyCode::Equal) {
                 self.pen_size += 1;
             }
             if !is_key_down(KeyCode::LeftSuper)
-                && is_key_pressed(KeyCode::Equal)
+                && is_key_pressed(KeyCode::Minus)
                 && self.pen_size > 1
             {
                 self.pen_size -= 1;
@@ -171,6 +172,16 @@ impl Editor {
             }
 
             self.display();
+
+            self.actions();
+
+            // self.preview();
+            // self.pencil();
+            // self.cursor();
+
+            let x = self.w - 100.0 + (self.pen_size as f32 / 2.0);
+            let y = self.h - 100.0 + (self.pen_size as f32 / 2.0);
+            draw_rectangle(x, y, self.pen_size as f32, self.pen_size as f32, BLACK);
 
             let text = format!("GRID: {}x{}", self.size, self.size);
             draw_text(&text, 20.0, 20.0, 24.0, BLACK);
@@ -197,11 +208,6 @@ impl Editor {
                 }
             }
         }
-    }
-
-    fn push_undo(&mut self) {
-        self.undo_stack.push(self.grid.clone());
-        self.redo_stack.clear();
     }
 
     fn undo(&mut self) {
@@ -235,19 +241,17 @@ impl Editor {
     }
 
     fn display(&self) {
-        let color = RED.with_alpha(0.3);
-
         let w = 640.0;
         let h = 480.0;
         let x = self.w / 2.0 - w / 2.0;
         let y = self.h / 2.0 - h / 2.0;
-        draw_rectangle_lines(x, y, w, h, 2.0, color);
+        draw_rectangle_lines(x, y, w, h, 2.0, RED);
 
         let w = 1280.0;
         let h = 720.0;
         let x = self.w / 2.0 - w / 2.0;
         let y = self.h / 2.0 - h / 2.0;
-        draw_rectangle_lines(x, y, w, h, 2.0, color);
+        draw_rectangle_lines(x, y, w, h, 2.0, RED);
     }
 
     fn export(&self) {
@@ -291,5 +295,37 @@ impl Editor {
             );
         }
         println!("}}");
+    }
+
+    fn actions(&mut self) {
+        if is_key_down(KeyCode::H) {
+            let help_items = [
+                ("HELP", ""),
+                ("[CMD+Z]", "Undo the last action"),
+                ("[CMD+Y]", "Redo the undone action"),
+                ("[CMD+E]", "Export to drawing function (console)"),
+                // ("[CMD+S]", "Toggle snap mode, align to nearby points"),
+                // ("[CMD+G]", "Toggle background grid visibility"),
+                ("[H]", "Show or hide this help overlay"),
+            ];
+            let text_size = 20.0;
+            let spacing = 6.0;
+            let line_height = text_size + spacing;
+            let total_height = help_items.len() as f32 * line_height;
+
+            let start_y = screen_height() / 2.0 - total_height / 2.0;
+            let padding = 20.0;
+
+            for (i, (shortcut, description)) in help_items.iter().enumerate() {
+                let y = start_y + i as f32 * line_height;
+
+                if description.is_empty() {
+                    draw_text(shortcut, padding, y, text_size, RED);
+                } else {
+                    draw_text(shortcut, padding, y, text_size, RED);
+                    draw_text(description, padding + 80.0, y, text_size, RED);
+                }
+            }
+        }
     }
 }

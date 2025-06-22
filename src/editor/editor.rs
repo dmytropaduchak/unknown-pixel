@@ -21,27 +21,67 @@ use macroquad::prelude::BLACK;
 use macroquad::prelude::LIGHTGRAY;
 use macroquad::prelude::RED;
 use macroquad::prelude::WHITE;
+use macroquad::prelude::*;
 
 const PIXEL_SIZE: f32 = 8.0;
 const GRID_WIDTH: usize = 320;
 const GRID_HEIGHT: usize = 240;
 
+// - rename const
+// - add grid size indicator
+// - add pen size indicator (right bottom)
+// - drawing simple shapes
+// - help
+// ? change baground
+// ? butoons + (keyboard combination)
+// ? export rectangle size
+//
+
 pub struct Editor {
+    cursor: f32,
     color: Color,
-    // texture: Option<Texture2D>,
-    // state: EditorState,
+    grid: Vec<Vec<bool>>,
+    draw: bool,
+    size: f32,       // grid cell size (zoom)
+    pen_size: usize, // pen pixel size
+    w: f32,
+    h: f32,
+    undo_stack: Vec<Vec<Vec<bool>>>,
+    redo_stack: Vec<Vec<Vec<bool>>>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Rect {
+    x: usize,
+    y: usize,
+    w: usize,
+    h: usize,
 }
 
 impl Editor {
     pub fn new() -> Self {
+        let size = PIXEL_SIZE;
+        let cursor = PIXEL_SIZE;
         let color = WHITE;
-        // let texture = None;
-        // let state = EditorState::new();
+        let grid = vec![vec![false; GRID_WIDTH]; GRID_HEIGHT];
+        let draw = false;
+        let w = screen_width();
+        let h = screen_height();
+        let pen_size = 1;
+        let undo_stack = Vec::new();
+        let redo_stack = Vec::new();
 
         Editor {
+            cursor,
             color,
-            // state,
-            // texture,
+            grid,
+            draw,
+            size,
+            pen_size,
+            w,
+            h,
+            undo_stack,
+            redo_stack,
         }
     }
 
@@ -49,33 +89,25 @@ impl Editor {
         let texture = load_texture("example.png").await.unwrap();
         texture.set_filter(FilterMode::Nearest);
 
-        let mut grid = vec![vec![false; GRID_WIDTH]; GRID_HEIGHT];
-        let mut drawing = false;
-        // let mut cursor = PIXEL_SIZE;
-
         loop {
             clear_background(self.color);
 
-            let screen_width = screen_width();
-            let screen_height = screen_height();
+            self.w = screen_width();
+            self.h = screen_height();
 
-            draw_texture_ex(
-                &texture,
-                0.0,
-                0.0,
-                WHITE,
-                DrawTextureParams {
-                    dest_size: Some(vec2(screen_width, screen_height)),
-                    ..Default::default()
-                },
-            );
-            // Draw grid lines
+            let dest_size = Some(vec2(self.w, self.h));
+            let params = DrawTextureParams {
+                dest_size,
+                ..Default::default()
+            };
+            draw_texture_ex(&texture, 0.0, 0.0, self.color, params);
+
             for x in 0..=GRID_WIDTH {
                 draw_line(
-                    x as f32 * PIXEL_SIZE,
+                    x as f32 * self.size,
                     0.0,
-                    x as f32 * PIXEL_SIZE,
-                    GRID_HEIGHT as f32 * PIXEL_SIZE,
+                    x as f32 * self.size,
+                    GRID_HEIGHT as f32 * self.size,
                     1.0,
                     LIGHTGRAY,
                 );
@@ -83,116 +115,179 @@ impl Editor {
             for y in 0..=GRID_HEIGHT {
                 draw_line(
                     0.0,
-                    y as f32 * PIXEL_SIZE,
-                    GRID_WIDTH as f32 * PIXEL_SIZE,
-                    y as f32 * PIXEL_SIZE,
+                    y as f32 * self.size,
+                    GRID_WIDTH as f32 * self.size,
+                    y as f32 * self.size,
                     1.0,
                     LIGHTGRAY,
                 );
             }
-            // Draw pixels
-            for y in 0..GRID_HEIGHT {
-                for x in 0..GRID_WIDTH {
-                    if grid[y][x] {
-                        draw_rectangle(
-                            x as f32 * PIXEL_SIZE,
-                            y as f32 * PIXEL_SIZE,
-                            PIXEL_SIZE,
-                            PIXEL_SIZE,
-                            BLACK,
-                        );
-                    }
-                }
-            }
 
-            // Input
+            self.pixels();
+            self.pixel();
+
             if is_mouse_button_down(MouseButton::Left) {
-                drawing = true;
-            } else if is_mouse_button_released(MouseButton::Left) {
-                drawing = false;
+                if !self.draw {
+                    self.push_undo();
+                }
+                self.draw = true;
+            }
+            if is_mouse_button_released(MouseButton::Left) {
+                self.draw = false;
             }
 
-            if drawing {
-                let (mx, my) = mouse_position();
-                let gx = (mx / PIXEL_SIZE).floor() as usize;
-                let gy = (my / PIXEL_SIZE).floor() as usize;
-                if gx < GRID_WIDTH && gy < GRID_HEIGHT {
-                    grid[gy][gx] = true;
+            // Undo (Ctrl+Z)
+            if is_key_pressed(KeyCode::Z) && is_key_down(KeyCode::LeftSuper) {
+                self.undo();
+            }
+            // Redo (Ctrl+Y)
+            if is_key_pressed(KeyCode::Y) && is_key_down(KeyCode::LeftSuper) {
+                self.redo();
+            }
+
+            // Export [Ctrl+E]
+            if is_key_pressed(KeyCode::E) && is_key_down(KeyCode::LeftSuper) {
+                self.export();
+            }
+
+            if !is_key_down(KeyCode::LeftSuper) && is_key_pressed(KeyCode::Minus) {
+                self.pen_size += 1;
+            }
+            if !is_key_down(KeyCode::LeftSuper)
+                && is_key_pressed(KeyCode::Equal)
+                && self.pen_size > 1
+            {
+                self.pen_size -= 1;
+            }
+
+            // Grid size (zoom)
+            if is_key_down(KeyCode::LeftSuper) && is_key_pressed(KeyCode::Equal) {
+                self.size += 1.0;
+            }
+            if is_key_down(KeyCode::LeftSuper) && is_key_pressed(KeyCode::Minus) {
+                if self.size > 1.0 {
+                    self.size -= 1.0;
                 }
             }
 
-            if is_key_pressed(KeyCode::E) {
-                self.export_combined(&grid);
-            }
+            self.display();
 
-            let w = 640.0;
-            let h = 480.0;
-            let x = screen_width / 2.0 - w / 2.0;
-            let y = screen_height / 2.0 - h / 2.0;
-            draw_rectangle_lines(x, y, w, h, 2.0, RED.with_alpha(0.3));
+            let text = format!("GRID: {}x{}", self.size, self.size);
+            draw_text(&text, 20.0, 20.0, 24.0, BLACK);
 
-            let w = 1280.0;
-            let h = 720.0;
-            let x = screen_width / 2.0 - w / 2.0;
-            let y = screen_height / 2.0 - h / 2.0;
-            draw_rectangle_lines(x, y, w, h, 2.0, RED.with_alpha(0.3));
+            let text = format!("PEN: {}x{}", self.pen_size, self.pen_size);
+            draw_text(&text, 20.0, 40.0, 24.0, BLACK);
 
             next_frame().await;
         }
     }
-    fn export_combined(&self, grid: &[Vec<bool>]) {
-        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-        struct Rect {
-            x: usize,
-            y: usize,
-            w: usize,
-            h: usize,
-        }
 
+    fn pixel(&mut self) {
+        if self.draw {
+            let (mx, my) = mouse_position();
+            let gx = (mx / self.size).floor() as isize;
+            let gy = (my / self.size).floor() as isize;
+            for dy in 0..self.pen_size as isize {
+                for dx in 0..self.pen_size as isize {
+                    let x = gx + dx;
+                    let y = gy + dy;
+                    if x >= 0 && y >= 0 && (x as usize) < GRID_WIDTH && (y as usize) < GRID_HEIGHT {
+                        self.grid[y as usize][x as usize] = true;
+                    }
+                }
+            }
+        }
+    }
+
+    fn push_undo(&mut self) {
+        self.undo_stack.push(self.grid.clone());
+        self.redo_stack.clear();
+    }
+
+    fn undo(&mut self) {
+        if let Some(prev) = self.undo_stack.pop() {
+            self.redo_stack.push(self.grid.clone());
+            self.grid = prev;
+        }
+    }
+
+    fn redo(&mut self) {
+        if let Some(next) = self.redo_stack.pop() {
+            self.undo_stack.push(self.grid.clone());
+            self.grid = next;
+        }
+    }
+
+    fn pixels(&self) {
+        for y in 0..GRID_HEIGHT {
+            for x in 0..GRID_WIDTH {
+                if self.grid[y][x] {
+                    draw_rectangle(
+                        x as f32 * self.size,
+                        y as f32 * self.size,
+                        self.size,
+                        self.size,
+                        BLACK,
+                    );
+                }
+            }
+        }
+    }
+
+    fn display(&self) {
+        let color = RED.with_alpha(0.3);
+
+        let w = 640.0;
+        let h = 480.0;
+        let x = self.w / 2.0 - w / 2.0;
+        let y = self.h / 2.0 - h / 2.0;
+        draw_rectangle_lines(x, y, w, h, 2.0, color);
+
+        let w = 1280.0;
+        let h = 720.0;
+        let x = self.w / 2.0 - w / 2.0;
+        let y = self.h / 2.0 - h / 2.0;
+        draw_rectangle_lines(x, y, w, h, 2.0, color);
+    }
+
+    fn export(&self) {
         let mut rects = vec![];
         let mut visited = vec![vec![false; GRID_WIDTH]; GRID_HEIGHT];
 
-        // Pass 1: collect all filled pixels
         for y in 0..GRID_HEIGHT {
             for x in 0..GRID_WIDTH {
-                if grid[y][x] && !visited[y][x] {
-                    // Expand as much as possible
+                if self.grid[y][x] && !visited[y][x] {
                     let mut w = 1;
-                    while x + w < GRID_WIDTH && grid[y][x + w] && !visited[y][x + w] {
+                    while x + w < GRID_WIDTH && self.grid[y][x + w] && !visited[y][x + w] {
                         w += 1;
                     }
-
                     let mut h = 1;
                     'outer: while y + h < GRID_HEIGHT {
                         for dx in 0..w {
-                            if !grid[y + h][x + dx] || visited[y + h][x + dx] {
+                            if !self.grid[y + h][x + dx] || visited[y + h][x + dx] {
                                 break 'outer;
                             }
                         }
                         h += 1;
                     }
-
-                    // Mark visited
                     for dy in 0..h {
                         for dx in 0..w {
                             visited[y + dy][x + dx] = true;
                         }
                     }
-
                     rects.push(Rect { x, y, w, h });
                 }
             }
         }
-        const EXPORT_PIXEL_SIZE: f32 = 2.0;
-        // Final pass: generate code
+
         println!("fn draw_exported_picture(x_offset: f32, y_offset: f32) {{");
         for r in rects {
             println!(
                 "    draw_rectangle(x_offset + {:.1}, y_offset + {:.1}, {:.1}, {:.1}, BLUE);",
-                r.x as f32 * EXPORT_PIXEL_SIZE,
-                r.y as f32 * EXPORT_PIXEL_SIZE,
-                r.w as f32 * EXPORT_PIXEL_SIZE,
-                r.h as f32 * EXPORT_PIXEL_SIZE,
+                r.x as f32 * self.size,
+                r.y as f32 * self.size,
+                r.w as f32 * self.size,
+                r.h as f32 * self.size,
             );
         }
         println!("}}");

@@ -174,20 +174,24 @@ impl Editor {
             self.display();
 
             self.actions();
+            // Show actual pixel size of pen (as rectangle in screen units)
+            let pen_pixel_size = self.pen_size as f32 * self.size;
+            let x = self.w - pen_pixel_size - 20.0;
+            let y = self.h - pen_pixel_size - 20.0;
+            draw_rectangle(x, y, pen_pixel_size, pen_pixel_size, BLACK);
 
-            // self.preview();
-            // self.pencil();
-            // self.cursor();
+            // println!("{}", self.draw);
+            // println!("{}", self.draw);
 
-            let x = self.w - 100.0 + (self.pen_size as f32 / 2.0);
-            let y = self.h - 100.0 + (self.pen_size as f32 / 2.0);
-            draw_rectangle(x, y, self.pen_size as f32, self.pen_size as f32, BLACK);
+            // let x = self.w - 100.0 + (self.pen_size as f32 / 2.0);
+            // let y = self.h - 100.0 + (self.pen_size as f32 / 2.0);
+            // draw_rectangle(x, y, self.pen_size as f32, self.pen_size as f32, BLACK);
 
             let text = format!("GRID: {}x{}", self.size, self.size);
             draw_text(&text, 20.0, 20.0, 24.0, BLACK);
 
-            let text = format!("PEN: {}x{}", self.pen_size, self.pen_size);
-            draw_text(&text, 20.0, 40.0, 24.0, BLACK);
+            // let text = format!("PEN: {}x{}", self.pen_size, self.pen_size);
+            // draw_text(&text, 20.0, 40.0, 24.0, BLACK);
 
             next_frame().await;
         }

@@ -22,7 +22,7 @@ fn files() -> Result<Icon, Box<dyn Error>> {
     Ok(Icon { small, medium, big })
 }
 
-pub fn default() -> Conf {
+pub fn editor_config() -> Conf {
     let icon = match files() {
         Ok(icon) => Some(icon),
         Err(e) => {
@@ -35,6 +35,8 @@ pub fn default() -> Conf {
     Conf {
         window_title,
         icon,
+        // window_width: 1920,
+        // window_height: 1080,
         ..Default::default()
     }
 }

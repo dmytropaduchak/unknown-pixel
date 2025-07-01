@@ -1,10 +1,7 @@
-mod config;
-use config::*;
-
 mod editor;
 use editor::*;
 
-#[macroquad::main(default)]
+#[macroquad::main(editor_config)]
 async fn main() {
     let mut editor = Editor::new();
     editor.run().await;
